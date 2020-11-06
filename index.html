@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Tamagotchi</title>
+    <script src="//cdn.jsdelivr.net/npm/phaser@3.11.0/dist/phaser.js"></script>
+    <style type="text/css">
+      body {
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <script type="text/javascript">
+      let config = {
+        type: Phaser.AUTO,
+        width: 800,
+        height: 600,
+        physics: {
+          default: "arcade",
+          arcade: {
+            gravity: { y: 500 },
+            debug: false,
+          },
+        },
+        scene: {
+          preload: preload,
+          create: create,
+          update: update,
+        },
+      };
+
+      let blob;
+      let stars;
+      let moogles;
+      let platforms;
+      let cursors;
+      let score = 0;
+      let gameOver = false;
+      let scoreText;
+      let hunger;
+      let hungerScore = 0;
+      let hungerText;
+      let coldScore = 0;
+      let coldText;
+      let cold;
+      let boredom;
+      let boredScore = 0;
+      let boredText;
+      let education;
+      let eduScore = 0;
+      let eduText;
+
+      let game = new Phaser.Game(config);
+
+      function preload() {
+        this.load.image("forest", "assets/forest.png");
+        this.load.image("ground", "assets/platform.png");
+        this.load.image("star", "assets/star.png");
+        this.load.image("moogle", "assets/moogle.png");
+        this.load.image("peco", "assets/peco_front.png");
+        this.load.image("smallplatform", "assets/smallplatform.png");
+        this.load.spritesheet("blob", "assets/phantump.png", {
+          frameWidth: 39,
+          frameHeight: 45,
+        });
+        this.load.image("summon", "assets/summonstone.png");
+      }
+
+      function create() {
+        let image = this.add.image(
+          this.cameras.main.width / 2,
+          this.cameras.main.height / 2,
+          "forest"
+        );
+        let peco = this.add.sprite(740, 500, "peco").setScale(0.4);
+        let scaleX = this.cameras.main.width / image.width;
+        let scaleY = this.cameras.main.height / image.height;
+        let scale = Math.max(scaleX, scaleY);
+        image.setScale(scale).setScrollFactor(0);
+
+        this.add.image(350, 120, "summon");
+        platforms = this.physics.add.staticGroup();
+
+        //ground platforms
+        platforms.create(100, 548, "ground").refreshBody().alpha = 0;
+        platforms.create(205, 548, "ground").refreshBody().alpha = 0;
+        platforms.create(700, 548, "ground").refreshBody().alpha = 0;
+        platforms.create(545, 548, "ground").refreshBody().alpha = 0;
+
+        //top platform
+        platforms.create(245, 180, "ground").alpha = 0;
+        platforms.create(315, 180, "ground").alpha = 0;
+
+        //left platform
+        platforms.create(45, 385, "smallplatform").alpha = 0;
+        platforms.create(130, 385, "smallplatform").alpha = 0;
+
+        platforms.create(450, 250, "smallplatform").setScale(1);
+        platforms.create(700, 400, "smallplatform").setScale(1);
+
+        blob = this.physics.add.sprite(100, 450, "blob");
+
+        blob.setBounce(0.2);
+        blob.setCollideWorldBounds(true);
+
+        this.anims.create({
+          key: "left",
+          frames: this.anims.generateFrameNumbers("blob", { start: 0, end: 1 }),
+          frameRate: 10,
+          repeat: -1,
+        });
+
+        this.anims.create({
+          key: "turn",
+          frames: [{ key: "blob", frame: 2 }],
+          frameRate: 20,
+        });
+
+        this.anims.create({
+          key: "right",
+          frames: this.anims.generateFrameNumbers("blob", { start: 3, end: 5 }),
+          frameRate: 10,
+          repeat: -1,
+        });
+
+        cursors = this.input.keyboard.createCursorKeys();
+
+        stars = this.physics.add.group({
+          key: "star",
+          repeat: 11,
+          setXY: { x: 12, y: 0, stepX: 70 },
+        });
+
+        stars.children.iterate(function (child) {
+          child.setBounceY(Phaser.Math.FloatBetween(0.4, 0.8));
+        });
+
+        moogles = this.physics.add.group();
+
+        //  The score
+        scoreText = this.add.text(16, 16, "stargold: 0", {
+          fontSize: "18px",
+          fill: "#000",
+        });
+
+        hungerText = this.add.text(16, 36, "hunger: 0", {
+          fontSize: "18px",
+          fill: "#000",
+        });
+
+        coldText = this.add.text(16, 56, "cold: 0", {
+          fontSize: "18px",
+          fill: "#000",
+        });
+
+        boredText = this.add.text(16, 76, "boredom: 0", {
+          fontSize: "18px",
+          fill: "#000",
+        });
+
+        this.physics.add.collider(blob, platforms);
+        this.physics.add.collider(stars, platforms);
+        this.physics.add.collider(moogles, platforms);
+        this.physics.add.collider(peco, platforms);
+
+        this.physics.add.overlap(blob, stars, collectStar, null, this);
+
+        this.physics.add.collider(blob, moogles, hitmoogle, null, this);
+      }
+
+      function update() {
+        coldScore += 0.01;
+        coldText.setText("cold: " + Math.trunc(coldScore));
+
+        boredScore += 0.001;
+        boredText.setText("boredom: " + Math.trunc(boredScore));
+
+        hungerScore += 0.02;
+        hungerText.setText("hunger: " + Math.trunc(hungerScore));
+        if (hungerScore >= 100) {
+          gameOver = true;
+        }
+        if (coldScore >= 100) {
+          gameOver = true;
+        }
+        if (gameOver) {
+          return;
+        }
+
+        if (cursors.left.isDown) {
+          blob.setVelocityX(-160);
+
+          blob.anims.play("left", true);
+        } else if (cursors.right.isDown) {
+          blob.setVelocityX(160);
+
+          blob.anims.play("right", true);
+        } else {
+          blob.setVelocityX(0);
+
+          blob.anims.play("turn");
+        }
+
+        if (cursors.up.isDown && blob.body.touching.down) {
+          blob.setVelocityY(-500);
+        }
+      }
+
+      function collectStar(blob, star) {
+        star.disableBody(true, true);
+
+        score += 10;
+        scoreText.setText("stargold: " + score);
+
+        if (stars.countActive(true) === 0) {
+          stars.children.iterate(function (child) {
+            child.enableBody(true, child.x, 0, true, true);
+          });
+
+          let x =
+            blob.x < 400
+              ? Phaser.Math.Between(400, 800)
+              : Phaser.Math.Between(0, 400);
+
+          let moogle = moogles.create(x, 16, "moogle");
+          moogle.setBounce(1).setScale(2);
+          moogle.setCollideWorldBounds(true);
+          moogle.setVelocity(Phaser.Math.Between(-200, 200), 20);
+          moogle.allowGravity = false;
+        }
+      }
+
+      function hitmoogle(blob, moogle) {
+        this.physics.pause();
+
+        blob.setTint(0xff0000);
+
+        blob.anims.play("turn");
+
+        gameOver = true;
+      }
+    </script>
+  </body>
+</html>
